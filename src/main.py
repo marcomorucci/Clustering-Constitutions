@@ -5,10 +5,10 @@ import os
 os.chdir('/Users/marco/Copy/projects/constitutions/src')
 print "working directory:", os.getcwd()
 
-from download_constitutions import *
-from build_datasets import *
+from download import *
+from datasets import *
 from analyze import *
-from prepare_scores import *
+from scores import *
 from pandas import DataFrame, read_csv
 import numpy as np
 
