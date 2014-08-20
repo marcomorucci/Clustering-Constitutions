@@ -1,10 +1,3 @@
-import sys
-sys.path.insert(0, '/Library/Python/2.7/site-packages')
-import os
-
-os.chdir('/Users/marco/Copy/projects/constitutions/src')
-print "working directory:", os.getcwd()
-
 from download import *
 from datasets import *
 from analyze import *
@@ -19,13 +12,15 @@ if __name__ == "__main__":
 
 
 def run_analysis(load=True, state_urls="../data/state_urls.txt",
-                 state_names="../data/state_names.txt", scoresPath="../data/fh.xls",
+                 state_names="../data/state_names.txt",
+                 scoresPath="../data/fh.xls",
                  displayProgress=False):
     if not load:
         with open(state_urls) as urlFile:
             paths = urlFile.read().splitlines()
             for p in paths:
-                paths[paths.index(p)] = "../constitutions/" + p.rstrip('\n') + ".txt"
+                paths[paths.index(p)] = "../constitutions/" + p.rstrip('\n') \
+                    + ".txt"
         with open(state_names) as nameFile:
             names = nameFile.read().splitlines()
 
@@ -35,7 +30,8 @@ def run_analysis(load=True, state_urls="../data/state_urls.txt",
     if load:
         print "Loading dataset..."
         d = dataset()
-        d.load("../output/dataset.csv", "../data/stopwords.csv", True, displayProgress)
+        d.load("../output/dataset.csv", "../data/stopwords.csv", True,
+               displayProgress)
 
     d.buildTFIDFTable()
 
@@ -65,7 +61,8 @@ def run_analysis(load=True, state_urls="../data/state_urls.txt",
     clusters['LJI'] = 0
     for i in lji.country:
         v = lji.loc[lji[lji.country == i].index, 'LJI']
-        clusters.loc[clusters[clusters['country'] == i].index, 'LJI'] = float(v)
+        clusters.loc[clusters[clusters['country'] == i].index, 'LJI'] = \
+            float(v)
 
     print "Obtaining State Fragility scores..."
     fs = getFragilityScores("../data/fragility.xls")

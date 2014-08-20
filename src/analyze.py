@@ -86,6 +86,8 @@ def runRegressions(data, formulas, save=True):
             for r in results:
                 file.write(str(r.summary()))
 
+    data.regResults = results
+
     return results
 
 

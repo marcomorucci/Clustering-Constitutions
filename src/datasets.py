@@ -4,7 +4,7 @@ import string
 import numpy as np
 from progressbar import *
 from pandas import read_csv, DataFrame, Series
-
+import matplotlib.pyplot as plt
 
 class dataset:
     def __init__(self):
@@ -13,6 +13,7 @@ class dataset:
         self.cdb = DataFrame()
         self.topWords = DataFrame()
         self.descStat = DataFrame()
+        self.regResults = []
 
     def create(self, paths, countryNames, saveFile="", clean=True,
                stopwordsPath="../data/stopwords.csv", displayProgress=True):
@@ -90,7 +91,8 @@ class dataset:
         for r in range(len(self.df)):
             tf.loc[r, :] = tf.loc[r, :] / self.df.loc[r, 'tot_terms']
 
-        idf = np.log((len(self.df.index)-2) / (self.df[self.df.ix[:, 2:] > 0].sum(axis=0))+1)
+        idf = np.log((len(self.df.index)-2) /
+                     (self.df[self.df.ix[:, 2:] > 0].sum(axis=0))+1)
         self.tf_idf = tf*idf
 
         if('country_id' in self.tf_idf.columns):
@@ -111,7 +113,6 @@ class dataset:
         tw = DataFrame()
         for r in range(len(self.df)):
             if self.df.loc[r, 'country_id'] in countries:
-                print r
                 if tf_idf:
                     tw = tw.append(self.tf_idf.loc[r, :])
                 else:
@@ -148,13 +149,16 @@ class dataset:
                 self.topWords.loc[idx, w] = tw[w]
 
         for r in range(len(self.topWords)):
-            countries = [c for c in self.getCluster(self.topWords.loc[r, 'cluster'])['country']]
+            countries = [c for c in self.getCluster(self.topWords.loc[r,
+                                                    'cluster'])['country']]
             for w in self.topWords.columns:
                 if w != 'cluster' and self.topWords.loc[r, w] == 0:
-                    self.topWords.loc[r, w] = self.getWordAvg(countries, w, tf_idf=(not raw))
+                    self.topWords.loc[r, w] = self.getWordAvg(countries, w,
+                                                              tf_idf=(not raw))
 
     def buildDescStatTable(self, clusterCol="kmeans",
-                           cols=['fh_score', 'LJI', 'fragility'], na_cols=['fragility']):
+                           cols=['fh_score', 'LJI', 'fragility'],
+                           na_cols=['fragility']):
         if len(self.cdb) == 0:
             raise Exception("Cluster database not initialized")
 
@@ -177,6 +181,40 @@ class dataset:
                     row.append(cluster[c].std())
 
             self.descStat.loc[l] = row
+
+    def regressionResults(self):
+        if not self.regResults:
+            raise Error("Tried to access regression results before running\
+                            regressions")
+
+        for r in self.regResults:
+            print r.summary()
+
+    def makePlots(self, save=False):
+        if not self.cdb:
+            raise Error("Tried to build plots with empty cluster table")
+
+        plt.figure(1)
+        self.cdb.boxplot(column="fh_score", by="kmeans")
+        if save:
+            plt.savefig("../output/img/FH.png")
+
+        plt.figure(2)
+        self.cdb.boxplot(column="LJI", by="kmeans")
+        if save:
+            plt.savefig("../output/img/LJ).png")
+
+        plt.figure(3)
+        self.cdb[self.cdb['fragility'] != 'NA'].boxplot(column="fragility",
+                                                        by="kmeans")
+        if save:
+            plt.savefig("../output/img/SFI).png")
+
+        if not save:
+            plt.show()
+
+    def showPlots(self):
+        self.makePlots()
 
 
 def loadConstitution(path):
