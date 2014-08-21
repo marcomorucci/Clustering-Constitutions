@@ -40,7 +40,7 @@ if __name__ == "__main__":
     pass
 
 
-def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
+def run_analysis(load=True, n_runs=50, load_urls=in_urls, save_urls=out_urls,
                  lsa_components=150, clusters_amt=5, top_words_amt=20,
                  print_results=True, save_results=True, display_progress=False
                  ):
@@ -51,6 +51,7 @@ def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
     Keyword arguments:
     load -- wether to load the frequencies dataset from a file, if False,
             creates the dataset from the constitutions files (default: True)
+    n_runs -- how many times to do the clusterin and calculate regressions.
     urls -- a dict containing urls for the data files, the keys must be the
             same as the default. (default: file_urls)
     lsa_components -- the number of components for the lsa analysis

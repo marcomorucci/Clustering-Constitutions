@@ -4,9 +4,9 @@ from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.preprocessing import scale, Normalizer
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.metrics import silhouette_score
-from progressbar import *
+from progress import *
 import statsmodels.formula.api as sm
-
+from pandas import DataFrame
 
 def preprocess(data, nComponents, use_tf_idf=True):
     if use_tf_idf:
@@ -21,67 +21,98 @@ def preprocess(data, nComponents, use_tf_idf=True):
     return norm.fit_transform(d)
 
 
-def runAgglomerative(data, nClusters=3, aff="euclidean", dist="ward",
-                     preProcess=True, nComponents=100):
-    if preProcess:
-        X = preprocess(data, nComponents)
-    else:
-        X = data
-    est = AgglomerativeClustering(nClusters, affinity=aff, linkage=dist)
-    fit = est.fit(X)
-    return fit.labels_
-
-
-def runKmeans(data, runs=50, KMeans_Init='k-means++', nClusters=3,
-              preProcess=True, nComponents=100, displayProgress=False):
-
-    if displayProgress:
-        widgets = ['Progress: ', Percentage(), ' ',
-                   Bar(marker=RotatingMarker())]
-        bar = ProgressBar(widgets=widgets, maxval=maxBar).start()
+def run_kmeans(data, KMeans_Init='k-means++', n_clusters=3,
+               pre_process=True, n_components=100, displayProgress=False):
 
     print "Preprocessing data..."
-    if preProcess:
-        X = preprocess(data, nComponents)
+    if pre_process:
+        X = preprocess(data, n_components)
     else:
         X = data
 
     print "Clustering data..."
-    est = KMeans(init=KMeans_Init, n_clusters=nClusters, n_init=1)
+    est = KMeans(init=KMeans_Init, n_clusters=n_clusters, n_init=1)
 
     labels = []
-    best = 0
-    for i in range(runs):
-
-        if displayProgress:
-            bar.update(i)
-
-        labs = est.fit(X).labels_
-        h = silhouette_score(X, labs, metric="euclidean")
-        if h > best:
-            best = h
-            labels = labs
 
     if displayProgress:
-        bar.finish()
+        bar.update(i)
 
-    print "Cluster homogeneity score (silhouette score):", best
-    return labels
+    labs = est.fit(X).labels_
+    h = silhouette_score(X, labs, metric="euclidean")
+
+    print "Cluster homogeneity score (silhouette score):", h
+    return h, labs
 
 
-def runRegressions(data, formulas):
+def run_regressions(data, formulas):
     results = []
-    c_frag = data.cdb[data.cdb['fragility'] != 'NA']
+    c_frag = data[data['fragility'] != 'NA']
     c_frag[['fragility']] = c_frag['fragility'].astype(float)
 
     for f in formulas:
         if 'fragility' in f:
             r = sm.ols(formula=f, data=c_frag).fit()
         else:
-            r = sm.ols(formula=f, data=data.cdb).fit()
+            r = sm.ols(formula=f, data=data).fit()
         results.append(r)
 
-    data.regResults = results
+    return results
+
+
+def run_multiple(data, formulas, mod_vars=["C(kmeans)[T.1]", "C(kmeans)[T.2]",
+                 "C(kmeans)[T.3]", "C(kmeans)[T.4]", "fh_score", "np.log(gdp)"],
+                 n_runs=50, n_clusters=5, n_components=150,
+                 display_progress=False):
+
+    cols = {"run": range(n_runs), "silhouette": 0}
+
+    for c in mod_vars:
+        for m in range(len(formulas)):
+            cols[str(m) + "_beta_" + str(c)] = 0
+            cols[str(m) + "_std_" + str(c)] = 0
+            cols[str(m) + "_p_" + str(c)] = 0
+
+    for m in range(len(formulas)):
+            cols[str(m) + "_intercept"] = 0
+            cols[str(m) + "_std_intercept"] = 0
+            cols[str(m) + "_p_intercept"] = 0
+            cols[str(m) + "_adj_r2"] = 0
+            cols[str(m) + "_f-score"] = 0
+            cols[str(m) + "_f-pval"] = 0
+
+    results = DataFrame(cols)
+
+    bar = Pbar(display_progress)
+
+    for i in range(n_runs):
+        h, labs = run_kmeans(data, n_clusters=n_clusters,
+                             n_components=n_components)
+        results.loc[i, 'silhouette'] = h
+
+        d = data.cdb
+        d['kmeans'] = labs
+        reg_results = run_regressions(data.cdb, formulas)
+
+        for r in reg_results:
+            m = str(reg_results.index(r))
+            for c in mod_vars:
+                if c not in r.params.keys():
+                    continue
+                results.loc[i, m + "_beta_" + c] = r.params[c]
+                results.loc[i, m + "_std_" + c] = r.bse[c]
+                results.loc[i, m + "_p_" + c] = r.pvalues[c]
+
+            results.loc[i, m + "_intercept"] = r.params[0]
+            results.loc[i, m + "_std_intercept"] = r.bse[0]
+            results.loc[i, m + "_p_intercept"] = r.pvalues[0]
+            results.loc[i, m + "_adj_r2"] = r.rsquared_adj
+            results.loc[i, m + "_f-score"] = r.fvalue
+            results.loc[i, m + "_f-pval"] = r.f_pvalue
+
+        bar.update(i)
+
+    bar.finish()
 
     return results
 
