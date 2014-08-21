@@ -72,3 +72,13 @@ def downloadAll():
         print("Some constitutions couldn't be retrieved: ")
         for u in failed_urls:
             print(u)
+
+
+def downloadScores(url=fh_url, filename="../data/fh.xls"):
+    r = requests.get(url)
+    if r.status_code != requests.codes.ok:
+        raise Exception("Couldn't retrieve scores, error code:" +
+                        str(r.status_code))
+
+    with open(filename, 'w') as file:
+        file.write(r.content)

@@ -69,7 +69,7 @@ def runKmeans(data, runs=50, KMeans_Init='k-means++', nClusters=3,
     return labels
 
 
-def runRegressions(data, formulas, save=True):
+def runRegressions(data, formulas):
     results = []
     c_frag = data.cdb[data.cdb['fragility'] != 'NA']
     c_frag[['fragility']] = c_frag['fragility'].astype(float)
@@ -80,11 +80,6 @@ def runRegressions(data, formulas, save=True):
         else:
             r = sm.ols(formula=f, data=data.cdb).fit()
         results.append(r)
-
-    if save:
-        with open("../output/regression_results.txt", 'w') as file:
-            for r in results:
-                file.write(str(r.summary()))
 
     data.regResults = results
 

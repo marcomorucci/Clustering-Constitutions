@@ -1,26 +1,15 @@
 import requests
 from xlrd import open_workbook
 
-polity_url = "http://www.systemicpeace.org/inscr/p4v2013d.xls"
-fh_url = "http://www.freedomhouse.org/sites/default/files/Country%20Ratings%20and%20Status%2C%201973-2014%20%28FINAL%29.xls"
 
-
-def downloadScores(url=fh_url, filename="../data/fh.xls"):
-    r = requests.get(url)
-    if r.status_code != requests.codes.ok:
-        raise Exception("Couldn't retrieve scores, error code:" + str(r.status_code))
-
-    with open(filename, 'w') as file:
-        file.write(r.content)
-
-
-def loadWorkbook(path, index=0):
+def load_workbook(path, index=0):
     wb = open_workbook(path)
     print "Loaded workbook with: ", wb.nsheets, 'sheets.'
     return wb.sheet_by_index(index)
 
 
-def getFragilityScores(path, col=4, names_path="../data/state_names.txt", year=2010):
+def get_sfi_scores(path, col=4, names_path="../data/state_names.txt",
+                   year=2010):
     with open(names_path, 'r+') as file:
         names = file.read().splitlines()
 
@@ -34,14 +23,14 @@ def getFragilityScores(path, col=4, names_path="../data/state_names.txt", year=2
     return scores
 
 
-def getFHScores(sheet, countryCol=0, scoreCol=117, startRow=7):
+def get_fh_scores(sheet, countryCol=0, scoreCol=117, startRow=7):
     scores = {}
     for r in range(startRow, sheet.nrows):
         scores[sheet.cell(r, countryCol).value] = sheet.cell(r, scoreCol).value
     return scores
 
 
-def cleanScores(scores, names_path):
+def clean_scores(scores, names_path):
     with open(names_path, 'r') as namesFile:
         names = namesFile.readlines()
     newScores = {}
@@ -52,7 +41,7 @@ def cleanScores(scores, names_path):
     return newScores
 
 
-def createScoreClusters(clusters, scores):
+def create_score_slusters(clusters, scores):
     cScores = {}
     for c in clusters:
         cScores[c] = []
@@ -61,7 +50,7 @@ def createScoreClusters(clusters, scores):
     return cScores
 
 
-def convertScores(scores):
+def convert_scores(scores):
     for k in scores.keys():
         if scores[k] == "NF":
             scores[k] = 1
@@ -72,7 +61,7 @@ def convertScores(scores):
     return scores
 
 
-def cleanLJIScores(ind):
+def clean_lji_scores(ind):
     ind = ind[ind['year'] == 2010]
     ind.loc[3353, 'country'] = "Bosnia-Herzegovina"
     ind.loc[5411, 'country'] = "Congo (Brazzaville)"
@@ -94,7 +83,7 @@ def cleanLJIScores(ind):
     return ind
 
 
-def getGDP(sheet):
+def get_gdp(sheet):
     gdp = {}
     for r in range(sheet.nrows):
         gdp[sheet.cell(r, 1).value] = sheet.cell(r, 2).value

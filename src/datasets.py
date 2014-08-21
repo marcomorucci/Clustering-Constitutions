@@ -2,38 +2,65 @@ from nltk.corpus import stopwords
 import nltk
 import string
 import numpy as np
-from progressbar import *
 from pandas import read_csv, DataFrame, Series
 import matplotlib.pyplot as plt
+from progress import *
 
-class dataset:
+
+class Dataset:
+    """
+    This class holds an object that stores all the tables and the results
+    of the analysis.
+
+    To access them once the analysis is over do:
+    data = Dataset()
+    data.df: for the raw word frequency data
+    data.cdb for the table holding clusters and dep. vars.
+    data.top_words for the table of most used words.
+    data.desc_stat for a table of descriptive statistics for each cluster
+    data.reg.results for the regression results stored as statsmodels
+                     regressionResults objects
+
+    You can show plots and print reg. results by doing
+    data.show_plots()
+    data.regression_results()
+    """
+
     def __init__(self):
         self.tf_idf = DataFrame()
         self.df = DataFrame()
         self.cdb = DataFrame()
-        self.topWords = DataFrame()
-        self.descStat = DataFrame()
-        self.regResults = []
+        self.top_words = DataFrame()
+        self.desc_stat = DataFrame()
+        self.reg_results = []
 
-    def create(self, paths, countryNames, saveFile="", clean=True,
-               stopwordsPath="../data/stopwords.csv", displayProgress=True):
-        cnt = 0
+    def create(self, paths, country_names, save_file="", clean=True,
+               stopwords_path="../data/stopwords.csv", display_progress=False):
 
-        if(displayProgress):
-            bar = self.initProgressBar("Generating csv dataset...", len(paths))
+        # Create progress bar, Pbar class will handle import and
+        # wheter or not to display.
+        bar = Pbar(displayProgress)
+        bar.create("Generating csv dataset...", len(paths))
 
+        # Init database with as many rows as there are countries
         self.df = DataFrame(countryNames, columns=["country_id"])
         self.df['tot_terms'] = 0
+
+        # A countre to keep track of which row we are on
+        cnt = 0
         for p in paths:
 
-            if(displayProgress):
-                bar.update(cnt)
+            bar.update(cnt)
 
-            c = loadConstitution(p)
-            frequencies = getFrequency(c)
+            c = load_constitution(p)
+            frequencies = get_frequency(c)
+
+            # Add number of words to each constitution
             self.df.loc[cnt, 'tot_terms'] = len(frequencies.keys())
 
             for word in frequencies.keys():
+                # Initialize all words that have not appeared in other
+                # constitutions to frequency 0
                 if word not in self.df.columns:
                     self.df[word] = 0
 
@@ -41,75 +68,75 @@ class dataset:
 
             cnt += 1
 
-        if(displayProgress):
-            bar.finish()
+        bar.finish()
 
         if(saveFile != ""):
             print "Saving dataset to csv file..."
             self.df.to_csv(saveFile, index=False)
 
         if(clean):
-            self.clean(stopwordsPath)
+            self.clean(stopwordsPath, display_progress)
 
     def load(self, path, stopwords="../data/stopwords.csv", clean=True,
-             displayProgress=False):
+             display_progress=False):
         self.df = read_csv(path)
         if clean:
-            self.clean(stopwords, displayProgress)
+            self.clean(stopwords, display_progress)
 
-    def clean(self, stopwordsPath, displayProgress=False):
-        if displayProgress:
-            bar = self.initProgressBar("Cleaning dataset...",
-                                       len(self.df.columns))
+    def clean(self, stopwords_path, display_progress=False):
+        bar = Pbar("Cleaning dataset...", len(self.df.columns))
 
-        with open(stopwordsPath, 'r+') as swFile:
-            stopwords = swFile.read().split(',')
+        with open(stopwordsPath, 'r+') as sw_file:
+            stopwords = sw_file.read().split(',')
+
         numbers = [str(n) for n in range(10)]
-
         i = 0
         for c in self.df.columns:
+            # Remove all words which meet the following conditions
             if c[0] in numbers or c in stopwords or not self.df[c].any > 0:
                 self.df = self.df.drop(c, axis=1)
 
-            if displayProgress:
-                bar.update(i)
-                i += 1
+            bar.update(i)
+            i += 1
 
-        if displayProgress:
-            bar.finish()
+        bar.finish()
 
-    def initProgressBar(self, message, maxBar):
-        widgets = ['Progress: ', Percentage(), ' ',
-                   Bar(marker=RotatingMarker())]
-        print(message)
-        return ProgressBar(widgets=widgets, maxval=maxBar).start()
-
-    def buildTFIDFTable(self):
+    def build_tfidf_table(self):
         self.tf_idf = DataFrame()
 
+        # Exclude country name and total words from data
         tf = self.df.ix[:, 2:]
+
+        # To create the tf term, divide each row by the number of words
+        # that appear in that country's constitution.
         for r in range(len(self.df)):
             tf.loc[r, :] = tf.loc[r, :] / self.df.loc[r, 'tot_terms']
 
-        idf = np.log((len(self.df.index)-2) /
+        # To create idf, divide the number of documents by the number
+        # of documents containing each word.
+        # The operation here is vectorized using numpy arrays.
+        # The number of documents containing each word is obtained by summing
+        # a vector of bools where the documents in which the word has freq. > 0
+        # are labeled true.
+        idf = np.log(len(self.df.index) /
                      (self.df[self.df.ix[:, 2:] > 0].sum(axis=0))+1)
+
         self.tf_idf = tf*idf
 
+        # Drop country and tot words columns from table in case they are still
+        # there.
         if('country_id' in self.tf_idf.columns):
             self.tf_idf = self.tf_idf.drop('country_id', axis=1)
         if'tot_terms' in self.tf_idf.columns:
             self.tf_idf = self.tf_idf.drop('tot_terms', axis=1)
 
-    def setClusters(self, cdb):
-        self.cdb = cdb
-
-    def getCluster(self, c_id, clusterCol='kmeans'):
+    def get_cluster(self, c_id, clusterCol='kmeans'):
         if c_id not in self.cdb[clusterCol]:
             raise KeyError("Selected cluster not in dataset")
 
         return self.cdb[self.cdb[clusterCol] == c_id]
 
-    def getTopWords(self, countries, thresh=10, tf_idf=False):
+    def get_topwords(self, countries, thresh=10, tf_idf=False):
         tw = DataFrame()
         for r in range(len(self.df)):
             if self.df.loc[r, 'country_id'] in countries:
@@ -120,7 +147,7 @@ class dataset:
 
         return tw.mean().order(ascending=False)[:thresh]
 
-    def getWordAvg(self, countries, word, tf_idf=False):
+    def get_word_avg(self, countries, word, tf_idf=False):
         w = 0
         for r in range(len(self.df)):
             if self.df.loc[r, 'country_id'] in countries:
@@ -130,40 +157,43 @@ class dataset:
                     w += self.df.loc[r, word]
         return w/len(countries)
 
-    def buildTopWordsTable(self, clusterCol="kmeans", thresh=10,
-                           addOverall=True, raw=True):
+    def build_topwords_table(self, cluster_col="kmeans", thresh=10, raw=True):
         if len(self.cdb) == 0:
             raise Exception("Cluster database not initialized")
 
+        # get themnames of all the clusters created
         labels = list(set(self.cdb[clusterCol]))
 
-        self.topWords = DataFrame({'cluster': labels})
+        self.top_words = DataFrame({'cluster': labels})
         for l in labels:
-            countries = [c for c in self.getCluster(l)['country']]
-            tw = self.getTopWords(countries, thresh, tf_idf=(not raw))
-            idx = self.topWords[self.topWords['cluster'] == l].index
+            countries = [c for c in self.get_cluster(l)['country']]
+            tw = self.get_topwords(countries, thresh, tf_idf=(not raw))
+            idx = self.top_words[self.top_words['cluster'] == l].index
 
             for w in tw.index:
-                if w not in self.topWords.columns:
-                    self.topWords[w] = 0
-                self.topWords.loc[idx, w] = tw[w]
+                if w not in self.top_words.columns:
+                    self.top_words[w] = 0
+                self.top_words.loc[idx, w] = tw[w]
 
-        for r in range(len(self.topWords)):
-            countries = [c for c in self.getCluster(self.topWords.loc[r,
-                                                    'cluster'])['country']]
-            for w in self.topWords.columns:
-                if w != 'cluster' and self.topWords.loc[r, w] == 0:
-                    self.topWords.loc[r, w] = self.getWordAvg(countries, w,
-                                                              tf_idf=(not raw))
+        for r in range(len(self.top_words)):
+            countries = [c for c in self.get_cluster(self.top_words.loc[r,
+                                                     'cluster'])['country']]
+            for w in self.top_words.columns:
+                if w != 'cluster' and self.top_words.loc[r, w] == 0:
+                    self.top_words.loc[r, w] = self.get_word_avg(countries, w,
+                                                            tf_idf=(not raw))
 
-    def buildDescStatTable(self, clusterCol="kmeans",
-                           cols=['fh_score', 'LJI', 'fragility'],
-                           na_cols=['fragility']):
+    def build_descstat_table(self, cluster_col="kmeans",
+                             cols=['fh_score', 'LJI', 'fragility'],
+                             na_cols=['fragility']):
         if len(self.cdb) == 0:
             raise Exception("Cluster database not initialized")
 
         labels = list(set(self.cdb[clusterCol]))
-        col_labels = sum([[c + '_mean', c + '_median', c + '_std'] for c in cols], [])
+        # This weird list comprehension creates the labels for each colums of
+        # the descstat table by pasting strings.
+        col_labels = sum([[c + '_mean', c + '_median', c + '_std']
+                          for c in cols], [])
         self.descStat = DataFrame(columns=['cluster'] + col_labels)
 
         for l in labels:
@@ -182,15 +212,15 @@ class dataset:
 
             self.descStat.loc[l] = row
 
-    def regressionResults(self):
-        if not self.regResults:
+    def regression_results(self):
+        if not self.reg_results:
             raise Error("Tried to access regression results before running\
                             regressions")
 
-        for r in self.regResults:
+        for r in self.reg_results:
             print r.summary()
 
-    def makePlots(self, save=False):
+    def make_plots(self, save=False):
         if not self.cdb:
             raise Error("Tried to build plots with empty cluster table")
 
@@ -213,19 +243,19 @@ class dataset:
         if not save:
             plt.show()
 
-    def showPlots(self):
-        self.makePlots()
+    def show_plots(self):
+        self.make_plots()
 
 
-def loadConstitution(path):
+def load_constitution(path):
     with open(path, "r") as constitution:
         text = constitution.read().lower()
-        noPunctuation = text.translate(None, string.punctuation)
-        tokens = nltk.word_tokenize(noPunctuation)
+        no_punctuation = text.translate(None, string.punctuation)
+        tokens = nltk.word_tokenize(no_punctuation)
         filtered = [t for t in tokens if t not in stopwords.words("english")]
         return tokens
 
 
-def getFrequency(tokens):
+def get_frequency(tokens):
     freq = nltk.FreqDist(tokens)
     return freq
