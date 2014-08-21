@@ -35,9 +35,8 @@ out_urls = {
     "plots": "../output/img/"
 }
 
-
-
 if __name__ == "__main__":
+    run_analysis()
     pass
 
 
@@ -78,19 +77,19 @@ def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
         with open(state_names) as name_file:
             names = name_file.read().splitlines()
 
-        d = dataset()
+        d = Dataset()
         d.create(paths, names, save_urls['dataset'], True,
                  load_urls['stopwords'], display_progress)
 
     # Load dataset from previously saved version
     if load:
         print "Loading dataset..."
-        d = dataset()
+        d = Dataset()
         d.load(urls['dataset'], load_urls['stopwords'], True,
                display_progress)
 
     # Build custom tf_idf table
-    d.buildTFIDFTable()
+    d.build_tfidf_table()
     if save_results:
         d.tf_idf.to_csv(save_urls['tf_idf'])
     print "Obtaining democracy scores..."
@@ -151,18 +150,18 @@ def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
     d.cdb = clusters
 
     print "Generating most used words table..."
-    d.buildTopWordsTable(thresh=top_words_amt)
+    d.build_topwords_table(thresh=top_words_amt)
     if save_results:
-        d.topWords.to_csv(save_urls['top_words'])
+        d.top_words.to_csv(save_urls['top_words'])
     if print_results:
-        print d.topWords
+        print d.top_words
 
     print "Generating descriptive statistics table..."
-    d.buildDescStatTable()
+    d.build_descstat_able()
     if save_results:
-        d.descStat.to_csv(save_urls['desc_stat'])
+        d.desc_stat.to_csv(save_urls['desc_stat'])
     if print_results:
-        print d.descStat
+        print d.desc_stat
 
     print "Loading gdp..."
     wb = loadWorkbook(load_urls['gdp'])
