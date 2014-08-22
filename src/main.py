@@ -4,8 +4,7 @@ This module contains a function to run the main analysis.
 to get a list of parameters for the function do help(main.run_analysis)
 """
 
-from download import *
-from datasets import *
+from dataset import *
 from analyze import *
 from scores import *
 from pandas import DataFrame, read_csv
@@ -32,7 +31,8 @@ out_urls = {
     "top_words": "../output/top_words.csv",
     "desc_stat": "../output/desc_stat.csv",
     "reg_results": "../output/reg_results.txt",
-    "plots": "../output/img/"
+    "plots": "../output/img/",
+    "multi_results": "../output/multi_results.csv"
 }
 
 if __name__ == "__main__":
@@ -40,26 +40,33 @@ if __name__ == "__main__":
     pass
 
 
-def run_analysis(load=True, n_runs=50, load_urls=in_urls, save_urls=out_urls,
-                 lsa_components=150, clusters_amt=5, top_words_amt=20,
-                 print_results=True, save_results=True, display_progress=False
+def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
+                 lsa_components=150, clusters_amt=5, build_topwords=True,
+                 top_words_amt=20, multiple=True, n_runs=50,
+                 print_results=True, save_results=True,
+                 display_progress=False
                  ):
 
     """
-    Runs the stps for the main analysis producing and saving the outputs
+    Runs the steps for the main analysis producing and saving the outputs
 
     Keyword arguments:
-    load -- wether to load the frequencies dataset from a file, if False,
+    load -- bool, wether to load the frequencies dataset from a file, if False,
             creates the dataset from the constitutions files (default: True)
-    n_runs -- how many times to do the clusterin and calculate regressions.
-    urls -- a dict containing urls for the data files, the keys must be the
+    urls -- dict containing urls for the data files, the keys must be the
             same as the default. (default: file_urls)
     lsa_components -- the number of components for the lsa analysis
-    clusters_amt -- the number of clusters to generate
-    print_results -- wheter to print results to the std output.
-    save_results -- wheter to save the results of the analysis
-    top_words_amt -- the amount of most used words per cluster to save.
-    display_progress -- wehter to display a progress bar for some operations.
+    clusters_amt -- int, the number of clusters to generate
+    build_topwords -- bool, wheter to build the topwords table (TAKES TIME!)
+    top_words_amt -- int, the amount of most used words per cluster to save
+    multiple -- bool, whether to run the clustering multiple times and
+                    generate multiple regression table.
+    n_runs -- int, how many times to do the clustering and calculate regression
+              coefficients.
+    print_results -- bool, wheter to print results to the std output.
+    save_results -- bool, wheter to save the results of the analysis
+    display_progress -- bool, whether to display a progress bar for
+                        some operations, requires progressbar.py installed.
 
     Returns:
     A Dataset object containing the results of the analysis do help(Dataset)
@@ -116,7 +123,11 @@ def run_analysis(load=True, n_runs=50, load_urls=in_urls, save_urls=out_urls,
     fhv = [fhc[v] for v in sorted(fhc.keys())]
 
     print "Running clustering analysis..."
-    k = runKmeans(d, nComponents=lsa_components, nClusters=clusters_amt)
+    e, h, k = runKmeans(d, nComponents=lsa_components, nClusters=clusters_amt)
+
+    if print_results:
+        print "Cluster homogeneity score (silhouette score):", h
+        print "Variance explained by LSA reduction:", e
 
     # Create DataFrame with clusters and dep. vars.
     clusters = DataFrame({"country": d.df['country_id'],
@@ -150,12 +161,13 @@ def run_analysis(load=True, n_runs=50, load_urls=in_urls, save_urls=out_urls,
     # Add the clusters db to the dataset object
     d.cdb = clusters
 
-    print "Generating most used words table..."
-    d.build_topwords_table(thresh=top_words_amt)
-    if save_results:
-        d.top_words.to_csv(save_urls['top_words'])
-    if print_results:
-        print d.top_words
+    if build_topwords:
+        print "Generating most used words table..."
+        d.build_topwords_table(thresh=top_words_amt)
+        if save_results:
+            d.top_words.to_csv(save_urls['top_words'])
+        if print_results:
+            print d.top_words
 
     print "Generating descriptive statistics table..."
     d.build_descstat_able()
@@ -186,11 +198,33 @@ def run_analysis(load=True, n_runs=50, load_urls=in_urls, save_urls=out_urls,
     results = runRegressions(d, formulas)
 
     if save_results:
-        with open(save_urls['reg_results'], 'w') as file:
+        with open(save_urls['reg_results'], 'sw') as file:
             for r in results:
                 file.write(str(r.summary()))
 
     if print_results:
         for r in results:
             print r.summary()
-        return d
+
+    if multiple:
+        print "running multiple clustering tests..."
+        kmeans_res = run_multiple(d, f)
+        rand_res = run_multiple(d, f, random=True)
+
+        rand_mods = split_results(rand_mods)
+        kmeans_mods = split_results(kmeans_mods)
+
+        rand_coeffs = [count_coefficients(m) for m in rand_mods]
+        kmeans_coeffs = [count_coefficients(m) for m in kmeans_mods]
+
+        d.multi_results['mod'] = range(6)
+        d.multi_results['kmeans'] = kmeans_coeffs
+        d.multi_results['random'] = rand_coeffs
+
+        if print_results:
+            print d.multi_results
+
+        if save_results:
+            d.multi_results.to_csv(save_urls['multi_results'], index=False)
+
+    return d

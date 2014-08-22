@@ -1,3 +1,8 @@
+"""
+This module contains helper functions to perform various analyses
+on the datasets created.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans, AgglomerativeClustering
@@ -7,31 +12,69 @@ from sklearn.metrics import silhouette_score
 from progress import *
 import statsmodels.formula.api as sm
 from pandas import DataFrame
+from random import randrange
 
-def preprocess(data, nComponents, use_tf_idf=True):
+
+def preprocess(data, n_components, use_tf_idf=True):
+    """
+    Preproecess the data for clustering by running SVD and
+    normalizing the results. This process is also known as
+    LSA.
+
+    arguments:
+    data -- Dataset, if tf_idf is Truethe object must contain a
+            tf_idf table alongside a raw frequencies dataframe.
+    n_components -- int, the number of components to use for the SVD
+                    a minimum of 100 is recommended.
+    use_tf_idf -- bool, whether to use the tf-idf frequencies for the
+                  preprocessing.
+
+    returns:
+    e -- float, a measure of variance explained by the SVD.
+    X -- np.array, an array with the data reduced to n_components.
+    """
     if use_tf_idf:
         d = data.tf_idf.as_matrix()
     else:
         d = data.df.as_matrix()
-    svd = TruncatedSVD(n_components=nComponents)
+    svd = TruncatedSVD(n_components=n_components)
     X = svd.fit_transform(d)
     norm = Normalizer()
-    print "Variance explained after LSA:", \
-        round(svd.explained_variance_ratio_.sum()*100, 2), '%'
-    return norm.fit_transform(d)
+
+    # Record a measure of explained variance
+    e = svd.explained_variance_ratio_.sum()*100
+    return e, norm.fit_transform(d)
 
 
-def run_kmeans(data, KMeans_Init='k-means++', n_clusters=3,
-               pre_process=True, n_components=100, displayProgress=False):
+def run_kmeans(data, kmeans_Init='k-means++', n_clusters=3,
+               pre_process=True, n_components=100):
+    """
+    Runs the kmeans clustering on the data.
 
+    arguments
+    data -- Dataset, an object storing either a raw frequency DataFrame or a
+            tf_idf table DataFrame.
+    KMeans_Init -- string, either k-means++ or random for kmeans initialization
+    n_clusters -- int, the amount of clusters to generate.
+    pre_process -- bool, whether to run preprocessing on the data.
+                   Do help(preprocess) for info on what preprocessing does.
+    n_components -- int, the amount of components SVD should reduce the data to
+
+    returns:
+    e -- float, a measure of explained variance by the SVD
+    h -- float, a measure of cluster purity (silhouette coefficient)
+    labs -- list, n_samples long list of cluster labels, each associated
+            with one country.
+    """
     print "Preprocessing data..."
     if pre_process:
-        X = preprocess(data, n_components)
+        e, X = preprocess(data, n_components)
     else:
         X = data
+        e = 0
 
     print "Clustering data..."
-    est = KMeans(init=KMeans_Init, n_clusters=n_clusters, n_init=1)
+    est = KMeans(init=kmeans_Init, n_clusters=n_clusters, n_init=1)
 
     labels = []
 
@@ -41,12 +84,29 @@ def run_kmeans(data, KMeans_Init='k-means++', n_clusters=3,
     labs = est.fit(X).labels_
     h = silhouette_score(X, labs, metric="euclidean")
 
-    print "Cluster homogeneity score (silhouette score):", h
-    return h, labs
+    return e, h, labs
 
 
 def run_regressions(data, formulas):
+    """
+    Run len(formulas) regressions on the clustered data.
+
+    arguments:
+    data -- Dataset, a dataset with the cdb field initialized to
+            a DataFrame containing clusters and dep.vars.
+    formulas --  a list of strings of the type 'dep_var ~ ex_var + ...'"
+                 see statsmodels documentation for details.
+
+    returns:
+    a list of RegressionResults objects each one containing the results of
+    one regression model. See statsmodels documentation for additional info.
+    """
     results = []
+
+    # We need to create an additional dataset for the fragility dep.var.
+    # because scores from some countries are missing (marked as 'NA')
+    # if we feed the statsmodels.ols function data with nas, it throws
+    # errors.
     c_frag = data[data['fragility'] != 'NA']
     c_frag[['fragility']] = c_frag['fragility'].astype(float)
 
@@ -60,12 +120,28 @@ def run_regressions(data, formulas):
     return results
 
 
-def run_multiple(data, formulas, mod_vars=["C(kmeans)[T.1]", "C(kmeans)[T.2]",
+def random_clusters(n_clusters, n_samples):
+    """
+    Creates n_samples random labels ranging from 0 to n_clusters.
+
+    arguments:
+    n_clusters -- int, how many different kinds of labels to create.
+    n_samples --  int, how many labels to create.
+
+    returns:
+    A list of n_clusters labels.
+    """
+    return [randrange(n_clusters) for s in range(n_samples)]
+
+
+def run_multiple(data, formulas, random=False,
+                 mod_vars=["C(kmeans)[T.1]", "C(kmeans)[T.2]",
                  "C(kmeans)[T.3]", "C(kmeans)[T.4]", "fh_score", "np.log(gdp)"],
                  n_runs=50, n_clusters=5, n_components=150,
                  display_progress=False):
 
-    cols = {"run": range(n_runs), "silhouette": 0}
+    # Generate column headers
+    cols = {"run": range(n_runs), "silhouette": 0, "LSA": 0}
 
     for c in mod_vars:
         for m in range(len(formulas)):
@@ -85,15 +161,24 @@ def run_multiple(data, formulas, mod_vars=["C(kmeans)[T.1]", "C(kmeans)[T.2]",
 
     bar = Pbar(display_progress)
 
+    # Run the multiple regressions
     for i in range(n_runs):
-        h, labs = run_kmeans(data, n_clusters=n_clusters,
-                             n_components=n_components)
+        if random:
+            labs = random_clusters(n_clusters=n_clusters, data=data)
+            e = 0
+            h = 0
+        else:
+            e, h, labs = run_kmeans(data, n_clusters=n_clusters,
+                                    n_components=n_components)
         results.loc[i, 'silhouette'] = h
-
+        results.loc[i, 'LSA'] = e
+        # The only data column that changes after a rerun are the clusters
         d = data.cdb
         d['kmeans'] = labs
+
         reg_results = run_regressions(data.cdb, formulas)
 
+        # Nicely put each result in a column in the output table.
         for r in reg_results:
             m = str(reg_results.index(r))
             for c in mod_vars:
@@ -132,6 +217,36 @@ def saveCountryClusters(c, path):
         f.write('\\\\ \n')
 
     f.close()
+
+
+def split_results(results, n_mods=6, n_cols=24):
+
+    lower, upper = 0, 24
+    mods = []
+    for m in range(n_mods):
+        mod = results.ix[:, lower:upper]
+        # Take model index out of comlumn names
+        mod.columns = [c[2:] for c in mod.columns]
+        mods.append(mod)
+        lower = upper
+        upper += n_cols
+
+    return mods
+
+
+def count_sig_coeff(mod, sig):
+
+    cond = []
+    for r in range(len(mod)):
+        if (mod.loc[r, 'p_C(kmeans)[T.1]'] < sig or
+            mod.loc[r, 'p_C(kmeans)[T.2]'] < sig or
+            mod.loc[r, 'p_C(kmeans)[T.3]'] < sig or
+            mod.loc[r, 'p_C(kmeans)[T.4]'] < sig):
+            cond.append(True)
+        else:
+            cond.append(False)
+
+    return len(mod.loc[cond, :])
 
 
 def saveTopWords(tw, path):

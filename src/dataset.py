@@ -33,6 +33,7 @@ class Dataset:
         self.top_words = DataFrame()
         self.desc_stat = DataFrame()
         self.reg_results = []
+        self.multi_results = DataFrame()
 
     def create(self, paths, country_names, save_file="", clean=True,
                stopwords_path="../data/stopwords.csv", display_progress=False):
