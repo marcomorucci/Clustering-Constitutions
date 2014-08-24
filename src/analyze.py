@@ -140,6 +140,27 @@ def run_multiple(data, formulas, random=False,
                  n_runs=50, n_clusters=5, n_components=150,
                  display_progress=False):
 
+    """
+    Runs clustering and regressions multiple times.
+
+    arguments:
+    data -- Dataset, a dataset with df and tf_idf both initialized.
+    formulas -- list, formulas for regressions, see
+                statsmodels documentation for more info.
+    random -- bool, whether to assign the clusters at random
+    mod_vars -- list, a list of strings with all the variables
+                of the regression, with the same names as the ols output.
+    n_runs -- int, how many runs to perform.
+    n_clusters -- int, how many clusters to generate.
+    n_components -- int, how many components proprocessing should reduce
+                    the data to.
+    display_progress -- bool, whether to display a progress bar.
+
+    returns:
+    A pandas DataFrame object, storing runs in the rows and model
+    coefficients in the columns
+    """
+
     # Generate column headers
     cols = {"run": range(n_runs), "silhouette": 0, "LSA": 0}
 
@@ -220,6 +241,17 @@ def saveCountryClusters(c, path):
 
 
 def split_results(results, n_mods=6, n_cols=24):
+    """
+    Divides multiple analysis results into separate models.
+
+    arguments:
+    results --  DataFrame, the output of the run_multiple function.
+    n_mods --  int, how many different models to split the data in.
+    n_cols --  int, how many columns pertain to each model.
+
+    returns:
+    A list of DataFrame, each one containing only one model.
+    """
 
     lower, upper = 0, 24
     mods = []
@@ -234,28 +266,40 @@ def split_results(results, n_mods=6, n_cols=24):
     return mods
 
 
-def count_sig_coeff(mod, sig):
+def get_sig_coeff(mod, sig, n_sig=1,
+                  coeffs=['p_C(kmeans)[T.1]', 'p_C(kmeans)[T.2]',
+                          'p_C(kmeans)[T.3]', 'p_C(kmeans)[T.4]']):
+    """
+    Counts how many runs had significant coefficients for the
+    model passed in.
 
+    mod -- DataFrame, a model such as one entry in the list returned by
+           the split_results fcn.
+    sig -- float, the significance level to consider.
+    coeffs -- list, a list of strings containing the column names of the
+              coefficients to check for significance.
+    n_sig -- the number of coefficients that have to be significant to
+             be included in the final result.
+
+    returns:
+    A DataFrame with all columns included in the passed mod, but only
+    the rows for which n_sig coefficients are considered significant at sig.
+    """
     cond = []
     for r in range(len(mod)):
-        if (mod.loc[r, 'p_C(kmeans)[T.1]'] < sig or
-            mod.loc[r, 'p_C(kmeans)[T.2]'] < sig or
-            mod.loc[r, 'p_C(kmeans)[T.3]'] < sig or
-            mod.loc[r, 'p_C(kmeans)[T.4]'] < sig):
+        sig_so_far = 0
+        # This is basically an 'or' condition unpacked.
+        for c in coeffs:
+            if mod.loc[r, c] < sig:
+                sig_so_far += 1
+                break
+
+        if sig_so_far >= n_sig:
             cond.append(True)
         else:
             cond.append(False)
 
-    return len(mod.loc[cond, :])
-
-
-def saveTopWords(tw, path):
-    f = open(path, 'w')
-    cnt = 0
-    for r in len(tw):
-        for c in tw.columns:
-            f.write(str(tw.loc[r, c]))
-    f.close()
+    return mod.loc[cond, :]
 
 
 def buildMultipleHistPlot(cdb):
