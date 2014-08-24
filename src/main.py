@@ -10,6 +10,7 @@ from scores import *
 from pandas import DataFrame, read_csv
 import numpy as np
 import progressbar
+import matplotlib.pyplot as plt
 np.random.seed(543)
 
 # default paths for datafiles, modify if files are moved from data directory.
@@ -205,6 +206,16 @@ def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
     if print_results:
         for r in results:
             print r.summary()
+
+    print "Building plots.."
+    d.make_plots(save=save_results)
+    build_multiple_hist(d.top_words, save=save_results,
+                        save_path=out_urls['plots'])
+
+    if print_results:
+        d.make_plots(save=False)
+        build_multiple_hist(d.top_words, save=False)
+        plt.show()
 
     if multiple:
         print "running multiple clustering tests..."

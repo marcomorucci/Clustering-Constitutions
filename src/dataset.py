@@ -246,6 +246,7 @@ class Dataset:
 
     def show_plots(self):
         self.make_plots()
+        plt.show()
 
 
 def load_constitution(path):

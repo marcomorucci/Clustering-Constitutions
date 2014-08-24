@@ -161,7 +161,7 @@ def run_multiple(data, formulas, random=False,
     coefficients in the columns
     """
 
-    # Generate column headers
+    # Generate column headers and initialize all columns to 0
     cols = {"run": range(n_runs), "silhouette": 0, "LSA": 0}
 
     for c in mod_vars:
@@ -180,6 +180,7 @@ def run_multiple(data, formulas, random=False,
 
     results = DataFrame(cols)
 
+    # Init progress bar
     bar = Pbar(display_progress)
 
     # Run the multiple regressions
@@ -302,16 +303,83 @@ def get_sig_coeff(mod, sig, n_sig=1,
     return mod.loc[cond, :]
 
 
-def buildMultipleHistPlot(cdb):
-    plt.clf
-    colors = ['b', 'g', 'r', 'y', 'c']
+def build_multiple_hist(cdb, save=False, save_path="../output/img/"):
+    """
+    Creates a stacked histogram with the frequency of the most used words
+    for each cluster.
 
-    for i in range(len(cdb)):
-        y = cdb.loc[i, 'state':]/cdb.loc[i, 'tot_terms']
-        x = np.array(range(36))
-        plt.bar(x, y, alpha=0.8, label=str(i),
-                color=colors[i], width=0.8, align="center")
+    arguments:
+    cdb --  DataFrame, the top_words table built by the Dataset class.
+    save -- bool, save the figure?
+    save_path -- path to save the image in, will NOT check if directory
+                 exists before saving and will NOT create new folders.
 
-    plt.xticks(range(36), cdb.columns[2:], rotation="vertical")
-    plt.legend(loc="best")
+    returns:
+    nothing.
+    """
+
+    plt.clf()
+    plt.figure(figsize=(12, 10), dpi=200)
+    plt.grid(True)
+    colors = {0: 'b', 1: 'g', 2: 'r', 3: 'y', 4: 'c'}
+    # Don't know why this is the right order.
+    labels = ['0', '1', '4', '3', '2']
+
+    # To plot lower values above higher ones sort each
+    # column in descending order and add it to the plot one at
+    # a time.
+    for x in np.arange(2, len(cdb.columns)):
+        for y in sorted(cdb.ix[:, x], reverse=True):
+            idx = cdb[cdb.ix[:, x] == y].index[0]
+            cluster = cdb.loc[idx, 'cluster']
+            color = colors[cluster]
+            plt.barh(x, y, color=color, align="center", linewidth=0)
+
+    plt.yticks(range(2, len(cdb.columns)), cdb.columns[2:])
+    plt.legend(labels, loc="best")
+    plt.tight_layout()
+
+    if save:
+        plt.savefig(save_path + "multi_hist.png")
+
+
+def plot_cluster_map(cdb, map_path="../data/world_borders/world_borders"):
+    from matplotlib.collections import LineCollection
+    from matplotlib import cm
+    from mpl_toolkits.basemap import Basemap
+    import shapefile
+
+    plt.clf()
+    # Custom adjust of the subplots
+    ax = plt.subplot(111)
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.90, bottom=0.05,
+                        wspace=0.15, hspace=0.05)
+    m = Basemap(resolution='c', projection='merc')
+    m.drawcountries(linewidth=0.5)
+    m.drawcoastlines(linewidth=0.5)
+
+    r = shapefile.Reader(map_path)
+    shapes = r.shapes()
+    records = r.records()
+
+    for record, shape in zip(records, shapes):
+        lons, lats = zip(*shape.points)
+        data = np.array(m(lons, lats)).T
+
+    if len(shape.parts) == 1:
+        segs = [data, ]
+    else:
+        segs = []
+        for i in range(1, len(shape.parts)):
+            index = shape.parts[i-1]
+            index2 = shape.parts[i]
+            segs.append(data[index:index2])
+        segs.append(data[index2:])
+
+    lines = LineCollection(segs, antialiaseds=(1,))
+    lines.set_facecolors(cm.jet(np.random.rand(1)))
+    lines.set_edgecolors('k')
+    lines.set_linewidth(0.1)
+    ax.add_collection(lines)
+
     plt.show()
