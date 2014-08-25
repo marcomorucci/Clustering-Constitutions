@@ -22,7 +22,8 @@ in_urls = {
     "sfi": "../data/sfi.xls",
     "stopwords": "../data/stopwords.csv",
     "gdp": "../data/gdp.xls",
-    "dataset": "../output/dataset.csv"
+    "dataset": "../output/dataset.csv",
+    "map": "../data/world_map/world_map"
 }
 
 out_urls = {
@@ -211,10 +212,10 @@ def run_analysis(load=True, load_urls=in_urls, save_urls=out_urls,
     d.make_plots(save=save_results)
     build_multiple_hist(d.top_words, save=save_results,
                         save_path=out_urls['plots'])
+    plot_cluster_map(d.cdb, map_path=load_urls['map'],
+                     save=save_results, save_path=save_urls['plots'])
 
     if print_results:
-        d.make_plots(save=False)
-        build_multiple_hist(d.top_words, save=False)
         plt.show()
 
     if multiple:

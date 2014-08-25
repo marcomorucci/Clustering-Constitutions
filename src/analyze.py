@@ -343,43 +343,76 @@ def build_multiple_hist(cdb, save=False, save_path="../output/img/"):
         plt.savefig(save_path + "multi_hist.png")
 
 
-def plot_cluster_map(cdb, map_path="../data/world_borders/world_borders"):
-    from matplotlib.collections import LineCollection
-    from matplotlib import cm
+def plot_cluster_map(cdb, map_path="../data/world_map/world_map",
+                     map_name='world_map', save=False,
+                     save_path="../output/img/"):
     from mpl_toolkits.basemap import Basemap
-    import shapefile
+    from matplotlib.patches import Polygon
+
+    """
+    Plots a world map with each country colored according to its cluster.
+
+    arguments:
+    cdb -- DataFrame, a dataframe with country names and cluster labels.
+    map_path -- string, the path to load the map shapefile from.
+    map_name --  string, the name of the shapefile. WARNING DO NOT MODIFY.
+    save -- bool, whether to save the plot.
+    save_path -- string, the path to save the plot in.
+
+    returns:
+    nothing.
+    """
 
     plt.clf()
-    # Custom adjust of the subplots
-    ax = plt.subplot(111)
-    plt.subplots_adjust(left=0.05, right=0.95, top=0.90, bottom=0.05,
-                        wspace=0.15, hspace=0.05)
-    m = Basemap(resolution='c', projection='merc')
-    m.drawcountries(linewidth=0.5)
-    m.drawcoastlines(linewidth=0.5)
+    plt.figure(figsize=(12, 10), dpi=200)
 
-    r = shapefile.Reader(map_path)
-    shapes = r.shapes()
-    records = r.records()
+    # Initialize a map
+    m = Basemap(projection='merc', llcrnrlat=-80, urcrnrlat=80,
+                llcrnrlon=-180, urcrnrlon=180, lat_ts=20, resolution='l')
+    m.drawmapboundary(fill_color='grey')
 
-    for record, shape in zip(records, shapes):
-        lons, lats = zip(*shape.points)
-        data = np.array(m(lons, lats)).T
+    # Map name is used in a variable name later, it must be the same
+    # as the m.world_map, m.world_map_info below.
+    s = m.readshapefile(map_path, map_name)
 
-    if len(shape.parts) == 1:
-        segs = [data, ]
-    else:
-        segs = []
-        for i in range(1, len(shape.parts)):
-            index = shape.parts[i-1]
-            index2 = shape.parts[i]
-            segs.append(data[index:index2])
-        segs.append(data[index2:])
+    # Associate a color with each cluster label
+    colors = {0: 'b', 1: 'g', 2: 'r', 3: 'y', 4: 'c'}
 
-    lines = LineCollection(segs, antialiaseds=(1,))
-    lines.set_facecolors(cm.jet(np.random.rand(1)))
-    lines.set_edgecolors('k')
-    lines.set_linewidth(0.1)
-    ax.add_collection(lines)
+    # Correct country names so that they can be identified in the shapefile
+    countries = [c for c in cdb['country']]
+    countries[countries.index('Bosnia-Herzegovina')] = 'Bosnia and Herz.'
+    countries[countries.index('Central African Republic')] = 'Central African Rep.'
+    countries[countries.index('Congo (Kinshasa)')] = 'Dem. Rep. Congo'
+    countries[countries.index('Congo (Brazzaville)')] = 'Congo'
+    countries[countries.index('Czech Republic')] = 'Czech Rep.'
+    countries[countries.index('Dominican Republic')] = 'Dominican Rep.'
+    countries[countries.index('Gambia, The')] = 'Gambia'
+    countries[countries.index('Equatorial Guinea')] = 'Eq. Guinea'
+    countries[countries.index('South Korea')] = 'Korea'
+    countries[countries.index('Laos')] = 'Lao PDR'
+    countries[countries.index('Burma')] = 'Myanmar'
+    countries[countries.index('North Korea')] = 'Dem. Rep. Korea'
+    countries[countries.index('South Sudan')] = 'S. Sudan'
+    countries[countries.index('Solomon Islands')] = 'Solomon Is.'
+    countries[countries.index('East Timor')] = 'Timor-Leste'
+    countries[countries.index('Trinidad & Tobago')] = 'Trinidad and Tobago'
 
-    plt.show()
+    # For each polygon in the shapefile
+    for xy, info in zip(m.world_map, m.world_map_info):
+        name = str(info['name'])
+
+        # Color it according to its cluster if it's included in the clusters
+        # list, else color it white.
+        if name in countries:
+            r = countries.index(name)
+            color = colors[cdb.loc[r, 'kmeans']]
+        else:
+            color = 'w'
+
+        poly = Polygon(xy, color=color, alpha=0.4, linewidth=0.0, ec='red')
+        plt.gca().add_patch(poly)
+
+    plt.legend(['0', '1', '4', '3', '2'], loc="best")
+
+    if save:
+        plt.savefig(save_path + 'cluster_map.png')
