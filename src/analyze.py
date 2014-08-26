@@ -347,7 +347,7 @@ def plot_cluster_map(cdb, map_path="../data/world_map/world_map",
                      map_name='world_map', save=False,
                      save_path="../output/img/"):
     from mpl_toolkits.basemap import Basemap
-    from matplotlib.patches import Polygon
+    from matplotlib.patches import Polygon, Patch
 
     """
     Plots a world map with each country colored according to its cluster.
@@ -377,6 +377,7 @@ def plot_cluster_map(cdb, map_path="../data/world_map/world_map",
 
     # Associate a color with each cluster label
     colors = {0: 'b', 1: 'g', 2: 'r', 3: 'y', 4: 'c'}
+    patches = [Patch(color=colors[k]) for k in colors.keys()]
 
     # Correct country names so that they can be identified in the shapefile
     countries = [c for c in cdb['country']]
@@ -412,7 +413,8 @@ def plot_cluster_map(cdb, map_path="../data/world_map/world_map",
         poly = Polygon(xy, color=color, alpha=0.4, linewidth=0.0, ec='red')
         plt.gca().add_patch(poly)
 
-    plt.legend(['0', '1', '4', '3', '2'], loc="best")
+    plt.title("Countries colored according to the cluster they are in")
+    plt.legend(patches, colors.keys(), loc="best")
 
     if save:
         plt.savefig(save_path + 'cluster_map.png')

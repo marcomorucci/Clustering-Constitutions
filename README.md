@@ -35,10 +35,6 @@ If you prefer running the module from a python shell open it into the src direct
 the results of the analysis will be stored in the data object returned by the
 run_analysis function.
 
-### (TBI) Options 
-
-
-
 ### Output
 If the script is run with all the default settings, it should output **4 csv tables**:
 
@@ -55,8 +51,8 @@ The default settings should also output **4 graphs**:
 - **FH.png**: Boxplot of clusters vs. freedom house scores.
 - **LJI.png**: Boxplot of clusters vs. latent judicial independence.
 - **SFI.png**: Boxplot of clusters vs. state fragility. 
-- *(TBI)* **cluster_map.png**: Map with each country colored according to the cluster it's in.
-- *(TBI)* **top\_words\_hist.png**: Histogram of the frequency of the most used words in each cluster.
+- **cluster_map.png**: Map with each country colored according to the cluster it's in.
+- **top\_words\_hist.png**: Histogram of the frequency of the most used words in each cluster.
 
 #### Dataset Object
 If the script is run in a python shell, the run_analysis function will return a dataset object through which all the tables used for the analysis will be accessible. 
@@ -104,15 +100,14 @@ All these packages have to be installed for the main analysis code to work.
 
 [Xlrd](https://github.com/python-excel/xlrd)
 
-For the download.py script to work additional dependencies are needed.
+### Optional:
+[Progressbar](https://code.google.com/p/python-progressbar/) 
 
 [BeautifulSoup](http://www.crummy.com/software/BeautifulSoup/)
 
 [Requests](http://docs.python-requests.org/en/latest/)
 
 ## TODO
-* Relations between dependents and clusters should be assessed in a RCT-type setting against a control group of completely random clusters.
-* OLS results should be strengthened by adding more control variables and by conducting robustness checks on model residuals.
 * We can understand if and what characteristics the clustering has captured by comparing cluster membership with the characteristics of constitutions collected in the [database](http://comparativeconstitutionsproject.org/download-data/) from the [Comparative Constitutions Project](http://comparativeconstitutionsproject.org/). 
 * Code should be cleaned up and properly documented.
 

@@ -163,7 +163,7 @@ class Dataset:
             raise Exception("Cluster database not initialized")
 
         # get themnames of all the clusters created
-        labels = list(set(self.cdb[clusterCol]))
+        labels = list(set(self.cdb[cluster_col]))
 
         self.top_words = DataFrame({'cluster': labels})
         for l in labels:
@@ -190,7 +190,7 @@ class Dataset:
         if len(self.cdb) == 0:
             raise Exception("Cluster database not initialized")
 
-        labels = list(set(self.cdb[clusterCol]))
+        labels = list(set(self.cdb[cluster_col]))
         # This weird list comprehension creates the labels for each colums of
         # the descstat table by pasting strings.
         col_labels = sum([[c + '_mean', c + '_median', c + '_std']
